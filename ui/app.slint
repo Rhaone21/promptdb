@@ -442,41 +442,12 @@ component Sidebar inherits Rectangle {
 
 // ---- Title bar ----
 
-component TitleBarButton inherits Rectangle {
-    in property <string> icon-name;
-    in property <bool> is-close: false;
-    callback clicked-btn();
-
-    width: 40px;
-    height: 30px;
-    border-radius: 6px;
-    background: area.pressed
-        ? (is-close ? Theme.danger : Theme.outline)
-        : (area.has-hover ? (is-close ? Theme.danger.with-alpha(0.85) : Theme.surface) : transparent);
-
-    Icon {
-        name: icon-name;
-        tint: (is-close && area.has-hover) ? #ffffff : Theme.text-secondary;
-        size: 13px;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-    }
-
-    area := TouchArea {
-        clicked => { clicked-btn(); }
-    }
-}
-
 component Header inherits Rectangle {
     in property <bool> update-available;
     in property <string> update-version;
-    in property <string> theme-label;
     in property <bool> sidebar-collapsed;
     callback cycle-theme-req();
     callback open-update-req();
-    callback minimize-req();
-    callback maximize-req();
-    callback close-req();
     callback toggle-sidebar-req();
 
     height: Theme.header-height;
@@ -535,18 +506,13 @@ component Header inherits Rectangle {
             }
         }
 
-        // Theme toggle (icon reflects current mode)
+        // Theme toggle (icon reflects current mode). Window min/max/close
+        // stay with the native OS chrome — duplicating them here was noise.
         IconButton {
             icon-name: Theme.mode == "light" ? "sun" : Theme.mode == "oled" ? "oled" : "moon";
             fg: Theme.text;
+            btn-size: 34px;
             clicked-btn => { cycle-theme-req(); }
-        }
-
-        HorizontalLayout {
-            spacing: 4px;
-            TitleBarButton { icon-name: "winMin"; clicked-btn => { minimize-req(); } }
-            TitleBarButton { icon-name: "winMax"; clicked-btn => { maximize-req(); } }
-            TitleBarButton { icon-name: "close"; is-close: true; clicked-btn => { close-req(); } }
         }
     }
 }
@@ -736,7 +702,7 @@ component PromptCard inherits Rectangle {
 
         if item.has-image : Image {
             source: item.image;
-            height: 72px;
+            height: 64px;
             width: 100%;
             image-fit: cover;
         }
@@ -861,7 +827,10 @@ component MainArea inherits Rectangle {
                 // Reflow: as many columns of >=mincard as the width allows.
                 property <int> cols: Math.max(1, Math.floor((self.width - 2 * pad + gap) / (mincard + gap)));
                 property <length> card-w: (self.width - 2 * pad - (cols - 1) * gap) / cols;
-                property <length> card-h: 210px;
+                // 236px fits the worst case (image card): 28 padding + 22 title
+                // + 64 image + 16 folder + 22 tags + 30 actions + 40 spacing =
+                // 222 fixed, leaving preview >= 1 line and actions never clipped.
+                property <length> card-h: 236px;
                 property <int> rows: Math.ceil(prompts.length / cols);
                 height: prompts.length > 0 ? (rows * (card-h + gap) - gap + 2 * pad) : 260px;
 
@@ -1156,10 +1125,10 @@ component FolderModal inherits ModalScrim {
 
             HorizontalLayout {
                 spacing: 8px;
-                if is-edit : IconButton {
+                if is-edit : GhostButton {
+                    icon-name: "trash";
                     label: "Hapus";
                     fg: Theme.danger;
-                    width: 60px;
                     clicked-btn => { delete-req(); }
                 }
                 Rectangle { horizontal-stretch: 1; }
@@ -1263,8 +1232,10 @@ component TagModal inherits ModalScrim {
                     color: Theme.text;
                     font-size: 13px;
                     single-line: true;
-                    text: root.name-text;
-                    edited => { root.name-text = self.text; }
+                    // Two-way: the modal stays open across add/edit cycles, so
+                    // Rust-side resets (clear after add, fill on edit) must
+                    // reach the input even after the user has typed in it.
+                    text <=> root.name-text;
                 }
             }
 
@@ -1478,9 +1449,6 @@ export component AppWindow inherits Window {
     callback toggle-pin(string);
     callback cycle-theme();
     callback open-update();
-    callback minimize-window();
-    callback maximize-window();
-    callback close-window();
     callback toggle-sidebar();
 
     callback open-add-prompt();
@@ -1525,13 +1493,9 @@ export component AppWindow inherits Window {
             Header {
                 update-available: root.update-available;
                 update-version: root.update-version;
-                theme-label: Theme.mode == "dark" ? "Dark" : Theme.mode == "oled" ? "OLED" : "Light";
                 sidebar-collapsed: root.sidebar-collapsed;
                 cycle-theme-req => { root.cycle-theme(); }
                 open-update-req => { root.open-update(); }
-                minimize-req => { root.minimize-window(); }
-                maximize-req => { root.maximize-window(); }
-                close-req => { root.close-window(); }
                 toggle-sidebar-req => { root.toggle-sidebar(); }
             }
 
@@ -1608,7 +1572,7 @@ export component AppWindow inherits Window {
         if show-tag-modal : TagModal {
             is-edit: root.tag-is-edit;
             error-text: root.tag-error;
-            name-text: root.edit-tag-name;
+            name-text <=> root.edit-tag-name;
             color-value: root.edit-tag-color;
             tag-list: root.tag-manage-items;
             close-req => { root.close-tag-modal(); }
