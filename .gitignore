@@ -17,3 +17,6 @@ data-test-empty-*/
 # Logs
 *.log
 npm-debug.log*
+
+# Claude local settings
+.claude/
