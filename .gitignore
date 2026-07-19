@@ -20,3 +20,6 @@ npm-debug.log*
 
 # Claude local settings
 .claude/
+
+# Rust
+/target/
