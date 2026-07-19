@@ -1,7 +1,10 @@
 // PromptDB native UI (Slint). Single-file: theme global, data structs,
 // small reusable parts, then the AppWindow that wires them together.
 // Rust (src/main.rs) owns all data/filtering logic and only pushes
-// pre-computed `[PromptItem]` / `[FolderItem]` models into this file.
+// pre-computed `[PromptItem]` / `[FolderItem]` / `[TagItem]` models into
+// this file. Modals are plain overlay Rectangles gated by `show-*` bools
+// (per project convention — more predictable across Slint versions than
+// PopupWindow).
 
 export global Theme {
     in property <string> mode: "dark"; // "dark" | "oled" | "light"
@@ -24,7 +27,7 @@ export global Theme {
     out property <length> space-sm: 16px;
     out property <length> space-md: 24px;
     out property <length> space-lg: 32px;
-    out property <length> sidebar-width: 280px;
+    out property <length> sidebar-width: 240px;
     out property <length> header-height: 64px;
 }
 
@@ -37,6 +40,8 @@ export struct PromptItem {
     pinned: bool,
     tag-names: [string],
     tag-colors: [color],
+    has-image: bool,
+    image: image,
 }
 
 export struct FolderItem {
@@ -45,6 +50,21 @@ export struct FolderItem {
     icon: string,
     count: int,
 }
+
+export struct TagItem {
+    id: string,
+    name: string,
+    color: color,
+    count: int,
+    selected: bool,
+}
+
+export struct BackupItem {
+    slot: int,
+    label: string,
+}
+
+// ---- Small reusable parts ----
 
 component TagChip inherits Rectangle {
     in property <string> label;
@@ -66,12 +86,150 @@ component TagChip inherits Rectangle {
     }
 }
 
+component IconButton inherits Rectangle {
+    in property <string> label;
+    in property <color> fg: Theme.text-secondary;
+    in property <length> btn-size: 30px;
+    callback clicked-btn();
+
+    width: btn-size;
+    height: btn-size;
+    border-radius: Theme.radius-small;
+    background: area.pressed ? Theme.outline : (area.has-hover ? Theme.surface-elevated : transparent);
+
+    Text {
+        text: label;
+        color: fg;
+        font-size: 13px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    area := TouchArea {
+        clicked => { clicked-btn(); }
+    }
+}
+
+component PrimaryButton inherits Rectangle {
+    in property <string> label;
+    in property <color> bg: Theme.primary;
+    in property <color> fg: #ffffff;
+    callback clicked-btn();
+
+    height: 36px;
+    width: txt.preferred-width + 28px;
+    border-radius: Theme.radius-small;
+    background: area.pressed ? bg.darker(0.18) : (area.has-hover ? bg.darker(0.06) : bg);
+
+    txt := Text {
+        text: label;
+        color: fg;
+        font-size: 13px;
+        font-weight: 600;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+
+    area := TouchArea {
+        clicked => { clicked-btn(); }
+    }
+}
+
+component GhostButton inherits Rectangle {
+    in property <string> label;
+    in property <color> fg: Theme.text;
+    callback clicked-btn();
+
+    height: 36px;
+    width: txt.preferred-width + 24px;
+    border-radius: Theme.radius-small;
+    border-width: 1px;
+    border-color: Theme.outline;
+    background: area.pressed ? Theme.outline : (area.has-hover ? Theme.surface-elevated : transparent);
+
+    txt := Text {
+        text: label;
+        color: fg;
+        font-size: 13px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+
+    area := TouchArea {
+        clicked => { clicked-btn(); }
+    }
+}
+
+component LabeledInput inherits VerticalLayout {
+    in property <string> label-text;
+    in property <string> placeholder;
+    in property <bool> multiline: false;
+    in-out property <string> text-value <=> input.text;
+    callback edited-text(string);
+
+    spacing: 6px;
+
+    Text {
+        text: label-text;
+        color: Theme.text-secondary;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    Rectangle {
+        height: multiline ? 180px : 38px;
+        clip: true;
+        border-radius: Theme.radius-small;
+        background: Theme.surface;
+        border-width: 1px;
+        border-color: input.has-focus ? Theme.primary : Theme.outline;
+
+        if input.text == "" : Text {
+            text: placeholder;
+            color: Theme.muted;
+            x: 12px;
+            y: 10px;
+            font-size: 13px;
+        }
+
+        Flickable {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            height: parent.height - 2px;
+            viewport-width: self.width;
+            viewport-height: max(self.height, input.preferred-height + 20px);
+
+            input := TextInput {
+                x: 11px;
+                y: 9px;
+                width: parent.width - 22px;
+                color: Theme.text;
+                font-size: 13px;
+                single-line: !multiline;
+                wrap: multiline ? word-wrap : no-wrap;
+                edited => { root.edited-text(self.text); }
+            }
+        }
+    }
+}
+
+component ModalScrim inherits Rectangle {
+    background: rgba(0, 0, 0, 0.55);
+    TouchArea { clicked => { } } // swallow clicks so they don't fall through to the app behind
+}
+
+// ---- Sidebar ----
+
 component SidebarItem inherits Rectangle {
     in property <string> label;
     in property <string> icon;
     in property <int> count;
     in property <bool> selected;
+    in property <bool> show-actions: false;
     callback clicked-item();
+    callback edit-clicked();
+    callback delete-clicked();
 
     height: 40px;
     border-radius: Theme.radius-small;
@@ -79,8 +237,8 @@ component SidebarItem inherits Rectangle {
 
     HorizontalLayout {
         padding-left: 12px;
-        padding-right: 12px;
-        spacing: 10px;
+        padding-right: 8px;
+        spacing: 8px;
 
         Text {
             text: icon;
@@ -102,6 +260,11 @@ component SidebarItem inherits Rectangle {
             font-size: 12px;
             vertical-alignment: center;
         }
+        if show-actions && area.has-hover : HorizontalLayout {
+            spacing: 2px;
+            IconButton { label: "\u{270E}"; btn-size: 22px; clicked-btn => { edit-clicked(); } }
+            IconButton { label: "\u{1F5D1}"; btn-size: 22px; clicked-btn => { delete-clicked(); } }
+        }
     }
 
     area := TouchArea {
@@ -112,29 +275,64 @@ component SidebarItem inherits Rectangle {
 component Sidebar inherits Rectangle {
     in property <[FolderItem]> folders;
     in property <string> selected-folder-id;
+    in property <bool> collapsed: false;
     callback folder-selected(string);
+    callback edit-folder(string);
+    callback delete-folder(string);
+    callback add-folder();
 
-    width: Theme.sidebar-width;
+    width: collapsed ? 0px : Theme.sidebar-width;
+    clip: true;
     background: Theme.surface;
-    border-width: 1px;
+    border-width: collapsed ? 0px : 1px;
     border-color: Theme.outline;
 
-    Flickable {
-        VerticalLayout {
-            padding: 12px;
-            spacing: 4px;
-            alignment: start;
+    VerticalLayout {
+        Flickable {
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding: 12px;
+                spacing: 4px;
+                alignment: start;
 
-            for f in folders : SidebarItem {
-                label: f.name;
-                icon: f.icon;
-                count: f.count;
-                selected: f.id == selected-folder-id;
-                clicked-item => { folder-selected(f.id); }
+                for f[i] in folders : SidebarItem {
+                    label: f.name;
+                    icon: f.icon;
+                    count: f.count;
+                    selected: f.id == selected-folder-id;
+                    show-actions: f.id != "";
+                    clicked-item => { folder-selected(f.id); }
+                    edit-clicked => { edit-folder(f.id); }
+                    delete-clicked => { delete-folder(f.id); }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: Theme.outline;
+        }
+
+        Rectangle {
+            height: 46px;
+            add-area := TouchArea {
+                clicked => { add-folder(); }
+            }
+            HorizontalLayout {
+                padding: 12px;
+                spacing: 8px;
+                Text {
+                    text: "+ Folder Baru";
+                    color: add-area.has-hover ? Theme.primary : Theme.text-secondary;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
             }
         }
     }
 }
+
+// ---- Title bar ----
 
 component TitleBarButton inherits Rectangle {
     in property <string> label;
@@ -162,11 +360,13 @@ component Header inherits Rectangle {
     in property <bool> update-available;
     in property <string> update-version;
     in property <string> theme-label;
+    in property <bool> sidebar-collapsed;
     callback cycle-theme-req();
     callback open-update-req();
     callback minimize-req();
     callback maximize-req();
     callback close-req();
+    callback toggle-sidebar-req();
 
     height: Theme.header-height;
     background: Theme.surface-elevated;
@@ -174,9 +374,14 @@ component Header inherits Rectangle {
     border-color: Theme.outline;
 
     HorizontalLayout {
-        padding-left: 20px;
+        padding-left: 12px;
         padding-right: 12px;
         spacing: 12px;
+
+        IconButton {
+            label: sidebar-collapsed ? "\u{2630}" : "\u{2039}";
+            clicked-btn => { toggle-sidebar-req(); }
+        }
 
         Text {
             text: "PromptDB";
@@ -238,21 +443,24 @@ component Header inherits Rectangle {
     }
 }
 
+// ---- Toolbar: search + prompt/tag/data actions ----
+
 component SearchBox inherits Rectangle {
     callback edited(string);
 
-    height: 40px;
+    height: 38px;
+    horizontal-stretch: 1;
     border-radius: Theme.radius-small;
     background: Theme.surface;
     border-width: 1px;
     border-color: input.has-focus ? Theme.primary : Theme.outline;
 
     if input.text == "" : Text {
-        text: "Search prompts by title or content...";
+        text: "Cari judul atau isi prompt...";
         color: Theme.muted;
         x: 14px;
         y: (parent.height - self.height) / 2;
-        font-size: 14px;
+        font-size: 13px;
     }
 
     input := TextInput {
@@ -260,53 +468,156 @@ component SearchBox inherits Rectangle {
         width: parent.width - 28px;
         y: (parent.height - self.height) / 2;
         color: Theme.text;
-        font-size: 14px;
+        font-size: 13px;
         single-line: true;
         edited => { root.edited(self.text); }
     }
 }
 
+component Toolbar inherits Rectangle {
+    callback search-changed(string);
+    callback add-prompt-req();
+    callback manage-tags-req();
+    callback import-req();
+    callback export-req();
+    callback backups-req();
+
+    height: 56px;
+    background: Theme.background;
+
+    HorizontalLayout {
+        padding: 10px;
+        spacing: 8px;
+
+        SearchBox { edited(t) => { search-changed(t); } }
+        PrimaryButton { label: "+ Tambah Prompt"; clicked-btn => { add-prompt-req(); } }
+        GhostButton { label: "Kelola Tag"; clicked-btn => { manage-tags-req(); } }
+        GhostButton { label: "Import"; clicked-btn => { import-req(); } }
+        GhostButton { label: "Export"; clicked-btn => { export-req(); } }
+        GhostButton { label: "Backup"; clicked-btn => { backups-req(); } }
+    }
+}
+
+// ---- Tag filter bar ----
+
+component TagFilterChip inherits Rectangle {
+    in property <string> label;
+    in property <color> dot-color;
+    in property <bool> show-dot: true;
+    in property <bool> selected;
+    callback clicked-chip();
+
+    height: 26px;
+    width: layout.preferred-width + 16px;
+    border-radius: 13px;
+    border-width: 1px;
+    border-color: selected ? Theme.primary : Theme.outline;
+    background: selected ? Theme.primary.with-alpha(0.18) : (area.has-hover ? Theme.surface-elevated : Theme.surface);
+
+    layout := HorizontalLayout {
+        x: 8px;
+        y: (parent.height - self.height) / 2;
+        spacing: 5px;
+        alignment: center;
+
+        if show-dot : Rectangle {
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: dot-color;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: label;
+            color: selected ? Theme.primary : Theme.text;
+            font-size: 12px;
+            font-weight: selected ? 600 : 400;
+        }
+    }
+
+    area := TouchArea {
+        clicked => { clicked-chip(); }
+    }
+}
+
+component TagFilterBar inherits Rectangle {
+    in property <[TagItem]> tags;
+    in property <string> filter-mode: "AND";
+    in property <int> selected-count: 0;
+    callback toggle-tag(string);
+    callback toggle-mode();
+    callback clear-filter();
+
+    height: tags.length > 0 || selected-count > 0 ? 42px : 0px;
+    clip: true;
+
+    Flickable {
+        HorizontalLayout {
+            padding: 6px;
+            spacing: 6px;
+
+            if selected-count > 0 : TagFilterChip {
+                label: "Reset Filter (" + selected-count + ")";
+                show-dot: false;
+                selected: true;
+                clicked-chip => { clear-filter(); }
+            }
+
+            for t in tags : TagFilterChip {
+                label: t.name;
+                dot-color: t.color;
+                selected: t.selected;
+                clicked-chip => { toggle-tag(t.id); }
+            }
+
+            if selected-count > 1 : TagFilterChip {
+                label: filter-mode == "AND" ? "Mode: AND" : "Mode: OR";
+                show-dot: false;
+                selected: false;
+                clicked-chip => { toggle-mode(); }
+            }
+        }
+    }
+}
+
+// ---- Prompt grid ----
+
 component PromptCard inherits Rectangle {
     in property <PromptItem> item;
     callback copy-requested(string);
     callback pin-requested(string);
+    callback edit-requested(string);
+    callback duplicate-requested(string);
 
     background: Theme.surface;
     border-radius: Theme.radius;
     border-width: 1px;
-    border-color: Theme.outline;
+    border-color: card-area.has-hover ? Theme.primary.with-alpha(0.4) : Theme.outline;
+
+    card-area := TouchArea {
+        clicked => { edit-requested(item.id); }
+    }
 
     VerticalLayout {
         padding: 16px;
         spacing: 8px;
 
+        if item.has-image : Image {
+            source: item.image;
+            height: 120px;
+            width: 100%;
+            image-fit: cover;
+        }
+
         HorizontalLayout {
             spacing: 8px;
             Text {
-                text: item.title;
+                text: (item.pinned ? "\u{1F4CC} " : "") + item.title;
                 color: Theme.text;
                 font-size: 16px;
                 font-weight: 600;
                 horizontal-stretch: 1;
                 overflow: elide;
-            }
-
-            pin-touch := Rectangle {
-                width: 30px;
-                height: 30px;
-                pin-dot := Rectangle {
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 5px;
-                    x: (parent.width - self.width) / 2;
-                    y: (parent.height - self.height) / 2;
-                    background: item.pinned ? Theme.accent : transparent;
-                    border-width: 1px;
-                    border-color: item.pinned ? Theme.accent : Theme.muted;
-                }
-                TouchArea {
-                    clicked => { pin-requested(item.id); }
-                }
             }
         }
 
@@ -338,6 +649,16 @@ component PromptCard inherits Rectangle {
 
         HorizontalLayout {
             alignment: end;
+            spacing: 6px;
+
+            IconButton {
+                label: item.pinned ? "\u{1F4CC}" : "\u{1F4CD}";
+                clicked-btn => { pin-requested(item.id); }
+            }
+            IconButton {
+                label: "\u{29C9}";
+                clicked-btn => { duplicate-requested(item.id); }
+            }
             copy-btn := Rectangle {
                 width: 70px;
                 height: 30px;
@@ -363,23 +684,34 @@ component PromptCard inherits Rectangle {
 
 component MainArea inherits Rectangle {
     in property <[PromptItem]> prompts;
+    in property <[TagItem]> tag-filter-items;
+    in property <string> tag-filter-mode;
+    in property <int> selected-tag-count;
     callback search-changed(string);
     callback copy-requested(string);
     callback pin-requested(string);
+    callback edit-requested(string);
+    callback duplicate-requested(string);
+    callback toggle-tag-filter(string);
+    callback toggle-tag-mode();
+    callback clear-tag-filter();
 
     horizontal-stretch: 1;
     background: Theme.background;
 
     VerticalLayout {
-        padding: 24px;
-        spacing: 16px;
-
-        SearchBox {
-            edited(t) => { search-changed(t); }
+        TagFilterBar {
+            tags: tag-filter-items;
+            filter-mode: tag-filter-mode;
+            selected-count: selected-tag-count;
+            toggle-tag(id) => { toggle-tag-filter(id); }
+            toggle-mode => { toggle-tag-mode(); }
+            clear-filter => { clear-tag-filter(); }
         }
 
         Flickable {
             VerticalLayout {
+                padding: 24px;
                 spacing: 12px;
                 alignment: start;
 
@@ -387,10 +719,12 @@ component MainArea inherits Rectangle {
                     item: it;
                     copy-requested(c) => { copy-requested(c); }
                     pin-requested(id) => { pin-requested(id); }
+                    edit-requested(id) => { edit-requested(id); }
+                    duplicate-requested(id) => { duplicate-requested(id); }
                 }
 
                 if prompts.length == 0 : Text {
-                    text: "No prompts found.";
+                    text: "Tidak ada prompt. Klik \"+ Tambah Prompt\" untuk membuat yang baru.";
                     color: Theme.muted;
                     horizontal-alignment: center;
                 }
@@ -398,6 +732,537 @@ component MainArea inherits Rectangle {
         }
     }
 }
+
+// ---- Prompt modal ----
+
+component PromptModal inherits ModalScrim {
+    in property <bool> is-edit;
+    in property <string> created-label;
+    in-out property <string> title-text;
+    in-out property <string> content-text;
+    in property <string> folder-id;
+    in property <[FolderItem]> folder-options;
+    in property <[TagItem]> edit-tags;
+    in property <string> image-label;
+    in property <bool> has-image;
+    in property <image> image-preview;
+
+    callback close-req();
+    callback save-req(string, string);
+    callback select-folder-req(string);
+    callback toggle-tag-req(string);
+    callback delete-req();
+    callback duplicate-req();
+    callback attach-image-req();
+    callback clear-image-req();
+
+    property <bool> confirm-delete: false;
+    confirm-timer := Timer {
+        interval: 3s;
+        running: confirm-delete;
+        triggered => { confirm-delete = false; }
+    }
+
+    card := Rectangle {
+        width: min(620px, parent.width - 60px);
+        height: min(680px, parent.height - 40px);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.surface-elevated;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.outline;
+
+        // Absorb clicks so the scrim behind doesn't also receive them.
+        TouchArea { clicked => { } }
+
+        VerticalLayout {
+            padding: 20px;
+            spacing: 12px;
+
+            HorizontalLayout {
+                Text {
+                    text: is-edit ? "Edit Prompt" : "Tambah Prompt";
+                    color: Theme.text;
+                    font-size: 18px;
+                    font-weight: 700;
+                    horizontal-stretch: 1;
+                }
+                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+            }
+
+            if is-edit : Text {
+                text: created-label;
+                color: Theme.muted;
+                font-size: 11px;
+            }
+
+            Flickable {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 14px;
+
+                    LabeledInput {
+                        label-text: "Judul";
+                        placeholder: "Judul prompt";
+                        text-value: root.title-text;
+                        edited-text(v) => { root.title-text = v; }
+                    }
+
+                    LabeledInput {
+                        label-text: "Isi Prompt";
+                        placeholder: "Tulis isi prompt di sini...";
+                        multiline: true;
+                        text-value: root.content-text;
+                        edited-text(v) => { root.content-text = v; }
+                    }
+
+                    VerticalLayout {
+                        spacing: 6px;
+                        Text { text: "Folder"; color: Theme.text-secondary; font-size: 12px; font-weight: 600; }
+                        Flickable {
+                            height: 34px;
+                            HorizontalLayout {
+                                spacing: 6px;
+                                for f in folder-options : TagFilterChip {
+                                    label: f.icon + " " + f.name;
+                                    show-dot: false;
+                                    selected: f.id == root.folder-id;
+                                    clicked-chip => { select-folder-req(f.id); }
+                                }
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        spacing: 6px;
+                        Text { text: "Tag"; color: Theme.text-secondary; font-size: 12px; font-weight: 600; }
+                        Flickable {
+                            height: edit-tags.length > 0 ? 34px : 20px;
+                            HorizontalLayout {
+                                spacing: 6px;
+                                for t in edit-tags : TagFilterChip {
+                                    label: t.name;
+                                    dot-color: t.color;
+                                    selected: t.selected;
+                                    clicked-chip => { toggle-tag-req(t.id); }
+                                }
+                                if edit-tags.length == 0 : Text {
+                                    text: "Belum ada tag. Buat lewat \"Kelola Tag\".";
+                                    color: Theme.muted;
+                                    font-size: 12px;
+                                }
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        spacing: 6px;
+                        Text { text: "Gambar (opsional)"; color: Theme.text-secondary; font-size: 12px; font-weight: 600; }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            if has-image : Image {
+                                source: image-preview;
+                                width: 46px;
+                                height: 46px;
+                                image-fit: cover;
+                            }
+                            Text {
+                                text: has-image ? image-label : "Tidak ada gambar";
+                                color: Theme.muted;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                            }
+                            GhostButton { label: "Pilih..."; clicked-btn => { attach-image-req(); } }
+                            if has-image : GhostButton { label: "Hapus"; clicked-btn => { clear-image-req(); } }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                if is-edit : GhostButton {
+                    label: confirm-delete ? "Yakin Hapus?" : "Hapus";
+                    fg: Theme.danger;
+                    clicked-btn => {
+                        if confirm-delete {
+                            confirm-delete = false;
+                            delete-req();
+                        } else {
+                            confirm-delete = true;
+                        }
+                    }
+                }
+                if is-edit : GhostButton { label: "Duplikat"; clicked-btn => { duplicate-req(); } }
+                Rectangle { horizontal-stretch: 1; }
+                GhostButton { label: "Batal"; clicked-btn => { close-req(); } }
+                PrimaryButton { label: "Simpan"; clicked-btn => { save-req(root.title-text, root.content-text); } }
+            }
+        }
+    }
+}
+
+// ---- Folder modal ----
+
+component FolderModal inherits ModalScrim {
+    in property <bool> is-edit;
+    in property <string> error-text;
+    in-out property <string> name-text;
+    in-out property <string> icon-text;
+
+    callback close-req();
+    callback save-req(string, string);
+    callback delete-req();
+
+    card := Rectangle {
+        width: min(420px, parent.width - 60px);
+        height: content.preferred-height + 40px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.surface-elevated;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.outline;
+
+        TouchArea { clicked => { } }
+
+        content := VerticalLayout {
+            padding: 20px;
+            spacing: 12px;
+
+            HorizontalLayout {
+                Text {
+                    text: is-edit ? "Edit Folder" : "Tambah Folder";
+                    color: Theme.text;
+                    font-size: 17px;
+                    font-weight: 700;
+                    horizontal-stretch: 1;
+                }
+                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+                VerticalLayout {
+                    width: 70px;
+                    spacing: 6px;
+                    Text { text: "Ikon"; color: Theme.text-secondary; font-size: 12px; font-weight: 600; }
+                    Rectangle {
+                        height: 38px;
+                        border-radius: Theme.radius-small;
+                        background: Theme.surface;
+                        border-width: 1px;
+                        border-color: icon-input.has-focus ? Theme.primary : Theme.outline;
+                        icon-input := TextInput {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            y: (parent.height - self.height) / 2;
+                            color: Theme.text;
+                            font-size: 16px;
+                            single-line: true;
+                            text: root.icon-text;
+                            edited => { root.icon-text = self.text; }
+                        }
+                    }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 6px;
+                    Text { text: "Nama Folder"; color: Theme.text-secondary; font-size: 12px; font-weight: 600; }
+                    Rectangle {
+                        height: 38px;
+                        border-radius: Theme.radius-small;
+                        background: Theme.surface;
+                        border-width: 1px;
+                        border-color: name-input.has-focus ? Theme.primary : Theme.outline;
+                        name-input := TextInput {
+                            x: 10px;
+                            width: parent.width - 20px;
+                            y: (parent.height - self.height) / 2;
+                            color: Theme.text;
+                            font-size: 13px;
+                            single-line: true;
+                            text: root.name-text;
+                            edited => { root.name-text = self.text; }
+                        }
+                    }
+                }
+            }
+
+            if error-text != "" : Text {
+                text: error-text;
+                color: Theme.danger;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                if is-edit : IconButton {
+                    label: "Hapus";
+                    fg: Theme.danger;
+                    width: 60px;
+                    clicked-btn => { delete-req(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                GhostButton { label: "Batal"; clicked-btn => { close-req(); } }
+                PrimaryButton { label: "Simpan"; clicked-btn => { save-req(root.name-text, root.icon-text); } }
+            }
+        }
+    }
+}
+
+// ---- Tag modal ----
+
+component TagListRow inherits Rectangle {
+    in property <TagItem> tag;
+    callback edit-clicked();
+    callback delete-clicked();
+
+    height: 38px;
+    border-radius: Theme.radius-small;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.outline;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 8px;
+        spacing: 8px;
+
+        Rectangle {
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background: tag.color;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: tag.name + " (" + tag.count + ")";
+            color: Theme.text;
+            font-size: 13px;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        IconButton { label: "\u{270E}"; btn-size: 24px; clicked-btn => { edit-clicked(); } }
+        IconButton { label: "\u{1F5D1}"; btn-size: 24px; clicked-btn => { delete-clicked(); } }
+    }
+}
+
+component TagModal inherits ModalScrim {
+    in property <bool> is-edit;
+    in property <string> error-text;
+    in-out property <string> name-text;
+    in property <color> color-value;
+    in property <[TagItem]> tag-list;
+
+    callback close-req();
+    callback save-req(string);
+    callback reset-req();
+    callback pick-color(color);
+    callback edit-tag-req(string);
+    callback delete-tag-req(string);
+
+    property <[color]> palette: [#1F8EF1, #9B59B6, #2ECC71, #F39C12, #E67E22, #E74C3C, #16A085, #F1C40F];
+
+    card := Rectangle {
+        width: min(460px, parent.width - 60px);
+        height: min(560px, parent.height - 40px);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.surface-elevated;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.outline;
+
+        TouchArea { clicked => { } }
+
+        VerticalLayout {
+            padding: 20px;
+            spacing: 12px;
+
+            HorizontalLayout {
+                Text {
+                    text: "Kelola Tag";
+                    color: Theme.text;
+                    font-size: 17px;
+                    font-weight: 700;
+                    horizontal-stretch: 1;
+                }
+                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+            }
+
+            Rectangle {
+                height: 38px;
+                border-radius: Theme.radius-small;
+                background: Theme.surface;
+                border-width: 1px;
+                border-color: name-input.has-focus ? Theme.primary : Theme.outline;
+                name-input := TextInput {
+                    x: 10px;
+                    width: parent.width - 20px;
+                    y: (parent.height - self.height) / 2;
+                    color: Theme.text;
+                    font-size: 13px;
+                    single-line: true;
+                    text: root.name-text;
+                    edited => { root.name-text = self.text; }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 6px;
+                for c in palette : Rectangle {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 12px;
+                    background: c;
+                    border-width: c == color-value ? 2px : 0px;
+                    border-color: Theme.text;
+                    TouchArea { clicked => { pick-color(c); } }
+                }
+            }
+
+            if error-text != "" : Text {
+                text: error-text;
+                color: Theme.danger;
+                font-size: 12px;
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Rectangle { horizontal-stretch: 1; }
+                if is-edit : GhostButton { label: "Batal Edit"; clicked-btn => { reset-req(); } }
+                PrimaryButton { label: is-edit ? "Update Tag" : "Tambah Tag"; clicked-btn => { save-req(root.name-text); } }
+            }
+
+            Rectangle { height: 1px; background: Theme.outline; }
+
+            Flickable {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 6px;
+                    for t in tag-list : TagListRow {
+                        tag: t;
+                        edit-clicked => { edit-tag-req(t.id); }
+                        delete-clicked => { delete-tag-req(t.id); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---- Backup modal ----
+
+component BackupRow inherits Rectangle {
+    in property <BackupItem> backup;
+    callback restore-clicked();
+
+    height: 44px;
+    border-radius: Theme.radius-small;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.outline;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 10px;
+        spacing: 8px;
+        Text {
+            text: backup.label;
+            color: Theme.text;
+            font-size: 12px;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        GhostButton { label: "Restore"; clicked-btn => { restore-clicked(); } }
+    }
+}
+
+component BackupModal inherits ModalScrim {
+    in property <[BackupItem]> backups;
+    callback close-req();
+    callback restore-req(int);
+
+    card := Rectangle {
+        width: min(420px, parent.width - 60px);
+        height: min(420px, parent.height - 40px);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        background: Theme.surface-elevated;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.outline;
+
+        TouchArea { clicked => { } }
+
+        VerticalLayout {
+            padding: 20px;
+            spacing: 12px;
+
+            HorizontalLayout {
+                Text {
+                    text: "Restore Backup";
+                    color: Theme.text;
+                    font-size: 17px;
+                    font-weight: 700;
+                    horizontal-stretch: 1;
+                }
+                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+            }
+
+            if backups.length == 0 : Text {
+                text: "Belum ada backup otomatis tersedia.";
+                color: Theme.muted;
+                font-size: 13px;
+            }
+
+            Flickable {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 6px;
+                    for b in backups : BackupRow {
+                        backup: b;
+                        restore-clicked => { restore-req(b.slot); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---- Toast ----
+
+component Toast inherits Rectangle {
+    // Root fills the window (default for an unconstrained child); the
+    // visible bar is an inner child so it can reference `parent` (the root
+    // itself is not allowed to reference its own future parent).
+    in property <string> message;
+    in property <string> kind: "success";
+
+    bar := Rectangle {
+        y: parent.height - self.height - 24px;
+        x: (parent.width - self.width) / 2;
+        width: txt.preferred-width + 32px;
+        height: 42px;
+        border-radius: Theme.radius-small;
+        background: kind == "warning" ? Theme.danger : Theme.primary;
+
+        txt := Text {
+            text: message;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+        }
+    }
+}
+
+// ---- App window ----
 
 export component AppWindow inherits Window {
     title: "PromptDB";
@@ -407,10 +1272,49 @@ export component AppWindow inherits Window {
 
     in property <[PromptItem]> prompts;
     in property <[FolderItem]> folders;
+    in property <[FolderItem]> folder-options;
+    in property <[TagItem]> tag-filter-items;
+    in property <[TagItem]> tag-manage-items;
+    in property <[TagItem]> edit-tag-items;
+    in property <[BackupItem]> backups;
     in property <string> selected-folder-id: "";
+    in property <string> tag-filter-mode: "AND";
+    in property <int> selected-tag-count: 0;
+    in property <bool> sidebar-collapsed: false;
     in property <bool> update-available: false;
     in property <string> update-version;
     in property <string> update-url;
+    in property <string> toast-message: "";
+    in property <string> toast-kind: "success";
+
+    // Prompt modal state
+    in property <bool> show-prompt-modal: false;
+    in property <bool> prompt-is-edit: false;
+    in property <string> prompt-created-label;
+    in property <string> editing-id: "";
+    in property <string> edit-folder-id: "";
+    in property <string> edit-image-label: "";
+    in property <bool> edit-has-image: false;
+    in property <image> edit-image-preview;
+    in-out property <string> edit-title: "";
+    in-out property <string> edit-content: "";
+
+    // Folder modal state
+    in property <bool> show-folder-modal: false;
+    in property <bool> folder-is-edit: false;
+    in property <string> folder-error: "";
+    in-out property <string> edit-folder-name: "";
+    in-out property <string> edit-folder-icon: "";
+
+    // Tag modal state
+    in property <bool> show-tag-modal: false;
+    in property <bool> tag-is-edit: false;
+    in property <string> tag-error: "";
+    in-out property <string> edit-tag-name: "";
+    in property <color> edit-tag-color: #1F8EF1;
+
+    // Backup modal state
+    in property <bool> show-backup-modal: false;
 
     callback search(string);
     callback select-folder(string);
@@ -421,34 +1325,153 @@ export component AppWindow inherits Window {
     callback minimize-window();
     callback maximize-window();
     callback close-window();
+    callback toggle-sidebar();
 
-    VerticalLayout {
-        Header {
-            update-available: root.update-available;
-            update-version: root.update-version;
-            theme-label: Theme.mode == "dark" ? "Dark" : Theme.mode == "oled" ? "OLED" : "Light";
-            cycle-theme-req => { root.cycle-theme(); }
-            open-update-req => { root.open-update(); }
-            minimize-req => { root.minimize-window(); }
-            maximize-req => { root.maximize-window(); }
-            close-req => { root.close-window(); }
+    callback open-add-prompt();
+    callback open-edit-prompt(string);
+    callback close-prompt-modal();
+    callback save-prompt(string, string);
+    callback delete-prompt();
+    callback duplicate-prompt(string);
+    callback select-edit-folder(string);
+    callback toggle-edit-tag(string);
+    callback attach-image();
+    callback clear-image();
+
+    callback open-add-folder();
+    callback open-edit-folder(string);
+    callback close-folder-modal();
+    callback save-folder(string, string);
+    callback delete-folder();
+    callback request-delete-folder(string);
+
+    callback open-tag-modal();
+    callback close-tag-modal();
+    callback save-tag(string);
+    callback reset-tag-form();
+    callback pick-tag-color(color);
+    callback edit-tag(string);
+    callback delete-tag(string);
+    callback toggle-tag-filter(string);
+    callback toggle-tag-filter-mode();
+    callback clear-tag-filter();
+
+    callback do-export();
+    callback do-import();
+    callback open-backups();
+    callback close-backups();
+    callback restore-backup(int);
+
+    Rectangle {
+        background: Theme.background;
+
+        VerticalLayout {
+            Header {
+                update-available: root.update-available;
+                update-version: root.update-version;
+                theme-label: Theme.mode == "dark" ? "Dark" : Theme.mode == "oled" ? "OLED" : "Light";
+                sidebar-collapsed: root.sidebar-collapsed;
+                cycle-theme-req => { root.cycle-theme(); }
+                open-update-req => { root.open-update(); }
+                minimize-req => { root.minimize-window(); }
+                maximize-req => { root.maximize-window(); }
+                close-req => { root.close-window(); }
+                toggle-sidebar-req => { root.toggle-sidebar(); }
+            }
+
+            Toolbar {
+                search-changed(t) => { root.search(t); }
+                add-prompt-req => { root.open-add-prompt(); }
+                manage-tags-req => { root.open-tag-modal(); }
+                import-req => { root.do-import(); }
+                export-req => { root.do-export(); }
+                backups-req => { root.open-backups(); }
+            }
+
+            HorizontalLayout {
+                vertical-stretch: 1;
+
+                Sidebar {
+                    folders: root.folders;
+                    selected-folder-id: root.selected-folder-id;
+                    collapsed: root.sidebar-collapsed;
+                    folder-selected(id) => { root.select-folder(id); }
+                    edit-folder(id) => { root.open-edit-folder(id); }
+                    delete-folder(id) => { root.request-delete-folder(id); }
+                    add-folder => { root.open-add-folder(); }
+                }
+
+                MainArea {
+                    prompts: root.prompts;
+                    tag-filter-items: root.tag-filter-items;
+                    tag-filter-mode: root.tag-filter-mode;
+                    selected-tag-count: root.selected-tag-count;
+                    search-changed(t) => { root.search(t); }
+                    copy-requested(c) => { root.copy(c); }
+                    pin-requested(id) => { root.toggle-pin(id); }
+                    edit-requested(id) => { root.open-edit-prompt(id); }
+                    duplicate-requested(id) => { root.duplicate-prompt(id); }
+                    toggle-tag-filter(id) => { root.toggle-tag-filter(id); }
+                    toggle-tag-mode => { root.toggle-tag-filter-mode(); }
+                    clear-tag-filter => { root.clear-tag-filter(); }
+                }
+            }
         }
 
-        HorizontalLayout {
-            vertical-stretch: 1;
+        if show-prompt-modal : PromptModal {
+            is-edit: root.prompt-is-edit;
+            created-label: root.prompt-created-label;
+            title-text: root.edit-title;
+            content-text: root.edit-content;
+            folder-id: root.edit-folder-id;
+            folder-options: root.folder-options;
+            edit-tags: root.edit-tag-items;
+            image-label: root.edit-image-label;
+            has-image: root.edit-has-image;
+            image-preview: root.edit-image-preview;
+            close-req => { root.close-prompt-modal(); }
+            save-req(t, c) => { root.edit-title = t; root.edit-content = c; root.save-prompt(t, c); }
+            select-folder-req(id) => { root.select-edit-folder(id); }
+            toggle-tag-req(id) => { root.toggle-edit-tag(id); }
+            delete-req => { root.delete-prompt(); }
+            duplicate-req => { root.duplicate-prompt(root.editing-id); }
+            attach-image-req => { root.attach-image(); }
+            clear-image-req => { root.clear-image(); }
+        }
 
-            Sidebar {
-                folders: root.folders;
-                selected-folder-id: root.selected-folder-id;
-                folder-selected(id) => { root.select-folder(id); }
-            }
+        if show-folder-modal : FolderModal {
+            is-edit: root.folder-is-edit;
+            error-text: root.folder-error;
+            name-text: root.edit-folder-name;
+            icon-text: root.edit-folder-icon;
+            close-req => { root.close-folder-modal(); }
+            save-req(n, i) => { root.edit-folder-name = n; root.edit-folder-icon = i; root.save-folder(n, i); }
+            delete-req => { root.delete-folder(); }
+        }
 
-            MainArea {
-                prompts: root.prompts;
-                search-changed(t) => { root.search(t); }
-                copy-requested(c) => { root.copy(c); }
-                pin-requested(id) => { root.toggle-pin(id); }
-            }
+        if show-tag-modal : TagModal {
+            is-edit: root.tag-is-edit;
+            error-text: root.tag-error;
+            name-text: root.edit-tag-name;
+            color-value: root.edit-tag-color;
+            tag-list: root.tag-manage-items;
+            close-req => { root.close-tag-modal(); }
+            save-req(n) => { root.edit-tag-name = n; root.save-tag(n); }
+            reset-req => { root.reset-tag-form(); }
+            pick-color(c) => { root.pick-tag-color(c); }
+            edit-tag-req(id) => { root.edit-tag(id); }
+            delete-tag-req(id) => { root.delete-tag(id); }
+        }
+
+        if show-backup-modal : BackupModal {
+            backups: root.backups;
+            close-req => { root.close-backups(); }
+            restore-req(slot) => { root.restore-backup(slot); }
+        }
+
+        if toast-message != "" : Toast {
+            message: root.toast-message;
+            kind: root.toast-kind;
         }
     }
 }
