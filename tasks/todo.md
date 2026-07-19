@@ -12,17 +12,23 @@ Council verdict: Tauri. Owner override: **native Slint** (max lightweight),
 - [x] `updater.rs` — GitHub Releases check + semver compare + open release page. Tested.
 - [x] Skeleton compiles, 6/6 tests pass
 
-## In progress
-- [ ] Slint UI (agent): sidebar(folders), prompt card grid, search, tag filter,
-      theme dark/oled/light, custom titlebar, prompt CRUD/copy/pin, update button
-- [ ] Wire main.rs: load db → models → Slint, callbacks → store, update check thread
+## Done (MVP + full parity)
+- [x] Slint UI: sidebar, card grid, search, tag filter, 3 themes, titlebar, update button
+- [x] main.rs wiring: load db → models → Slint, callbacks → store, update thread
+- [x] Prompt CRUD + duplicate + 2-step delete confirm
+- [x] Folder management (create/rename/icon/delete)
+- [x] Tag management modal + multi-select AND/OR filter
+- [x] Import/export (rfd dialogs), backup list/restore
+- [x] Images (display + attach/detach), sidebar collapse
+- [x] Clipboard copy (arboard)
+- [x] CI (Win+Mac build+test) + Release workflow (tag → GitHub Release)
+- [x] v2.0.0 released: mac + windows artifacts published. Updater live end-to-end.
 
-## Follow-up (tracked, not MVP)
-- [ ] Image paste/attach (imageUrl `img::` + data/images)
-- [ ] Tag-manager modal, folder edit modal
-- [ ] Backup restore UI, import/export dialogs (rfd)
-- [ ] GitHub Actions matrix: Windows .exe/.msi + Mac .dmg
-- [ ] Retire Electron files from main (final step, once Slint at parity)
+## Follow-up (tracked)
+- [ ] Retire Electron files from main (once you confirm Slint parity in daily use)
+- [ ] Bundled-image export; proper .app/.dmg + .msi packaging + code signing
+- [ ] RAM trim (software renderer option) if 127MB matters
+- [ ] Sidebar collapse to icon-rail (currently width 0)
 
 ## Design tokens (from existing style.css — 3 themes)
 - radius 10 / small 8; space 8/16/24/32; sidebar 280 (collapsed 72); header 64
