@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PromptDB</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <div class="bgGlow" aria-hidden="true"></div>
+    <div id="root" class="app" data-theme="dark">
+        <!-- Custom Titlebar -->
+        <div class="titleBar" id="titleBar">
+            <div class="titleBarDrag">
+                <img src="icon-brand.png" class="titleBarIcon" alt="" />
+                <span class="titleBarTitle">PromptDB</span>
+            </div>
+            <div class="titleBarControls">
+                <button class="titleBarBtn" id="btnMinimize" title="Minimize" aria-label="Minimize"><span data-icon="winMin" data-icon-size="12"></span></button>
+                <button class="titleBarBtn" id="btnMaximize" title="Maximize/Restore" aria-label="Maximize"><span data-icon="winMax" data-icon-size="12"></span></button>
+                <button class="titleBarBtn titleBarClose" id="btnClose" title="Close" aria-label="Close"><span data-icon="close" data-icon-size="12"></span></button>
+            </div>
+        </div>
+
+        <!-- App Content -->
+        <div class="appContent">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebarHeader">
+                <div class="brand">
+                    <img src="icon-brand.png" class="brandIcon" alt="PromptDB" />
+                    <div class="brandText sidebarCollapseHide">
+                        <div class="title">PromptDB</div>
+                        <div class="sub">Penyimpanan Lokal</div>
+                    </div>
+                </div>
+                <button class="sidebarCollapseBtn" id="sidebarCollapseBtn" title="Collapse sidebar" aria-label="Collapse sidebar">
+                    <span data-icon="arrowDown" data-icon-size="14" style="transform:rotate(90deg);display:block;"></span>
+                </button>
+            </div>
+
+            <div class="sidebarContent">
+                <div class="sectionTitle sidebarCollapseHide">Folder</div>
+
+                <div class="folderList" id="folderList"></div>
+
+                <div style="margin-top: 12px; display:flex; gap: 10px;" class="sidebarCollapseHide">
+                    <button id="addFolderButton" class="button" style="flex:1;"><span data-icon="add" data-icon-size="16"></span>Tambah Folder</button>
+                </div>
+
+                <div class="divider sidebarCollapseHide"></div>
+
+                <div class="sectionTitle sidebarCollapseHide">Petunjuk</div>
+                <div class="helperText sidebarCollapseHide">
+                    Seret kartu prompt ke folder untuk memindahkan.<br />
+                    Data disimpan sebagai file <b>db.json</b>.
+                </div>
+            </div>
+
+            <div class="sidebarFooter">
+                <div class="settingsRow">
+                    <span class="sidebarCollapseHide">Tema</span>
+                    <button id="themeToggle" class="button" style="min-width:40px;padding:0 10px;" title="Ganti tema" aria-label="Tema"><span data-icon="moon" data-icon-size="16"></span></button>
+                </div>
+                <div class="settingsRow sidebarCollapseHide">
+                    <span>Auto-backup</span>
+                    <div id="autoBackupToggle" class="toggle on" role="switch" aria-label="Auto-backup">
+                        <div class="toggleKnob"></div>
+                    </div>
+                </div>
+                <div class="settingsRow sidebarCollapseHide">
+                    <button id="restoreBackupButton" class="button" style="width:100%;font-size:12px;" title="Lihat dan restore dari backup otomatis"><span data-icon="restore" data-icon-size="14"></span>Restore Backup</button>
+                </div>
+                <div class="copyrightLine sidebarCollapseHide">© 2025 Rhaone · PromptDB</div>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main">
+            <div class="header">
+                <div class="headerTopRow">
+                    <div class="headerPill">
+                        <div class="searchBar" title="Cari prompt berdasarkan judul atau isi">
+                            <div class="searchIcon"><span data-icon="search" data-icon-size="16"></span></div>
+                            <input id="searchInput" class="searchInput" placeholder="Cari prompt... (Ctrl+F)" aria-label="Cari prompt" />
+                            <button id="clearSearchButton" class="clearButton" title="Bersihkan" aria-label="Bersihkan pencarian"><span data-icon="close" data-icon-size="16"></span></button>
+                        </div>
+                        <div class="headerPillDivider"></div>
+                        <div class="kbdHint" title="Penyimpanan lokal" id="dbPathHint">Lokal</div>
+                    </div>
+                    <div class="headerRight">
+                        <button id="newPromptButton" class="button primary"><span data-icon="add" data-icon-size="16"></span>Prompt Baru</button>
+                        <div class="dataDropdown" id="dataDropdown">
+                            <button id="dataDropdownToggle" class="button" title="Export / Import data" aria-expanded="false" aria-haspopup="true"><span data-icon="data" data-icon-size="16"></span>Data<span data-icon="arrowDown" data-icon-size="14"></span></button>
+                            <div class="dataDropdownMenu" id="dataDropdownMenu">
+                                <button id="exportButton" class="dropdownItem"><span data-icon="export" data-icon-size="16"></span>Export JSON</button>
+                                <button id="exportBundledButton" class="dropdownItem"><span data-icon="export" data-icon-size="16"></span>Export + Gambar</button>
+                                <div class="dropdownDivider"></div>
+                                <button id="importButton" class="dropdownItem"><span data-icon="import" data-icon-size="16"></span>Import</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="headerControlRow">
+                    <div class="headerTitleArea">
+                        <h1 id="gridTitle" class="headerTitle">Semua Prompt</h1>
+                        <span id="gridSubtitle" class="headerCount">…</span>
+                    </div>
+                    <div class="headerActions">
+                        <div class="customSelect" id="sortDropdown">
+                            <button class="customSelectBtn" id="sortDropdownBtn" aria-expanded="false" aria-haspopup="listbox">
+                                <span id="sortDropdownLabel">Diperbarui (terbaru)</span>
+                                <span class="customSelectArrow">▾</span>
+                            </button>
+                            <div class="customSelectMenu" id="sortDropdownMenu">
+                                <div class="customSelectOption selected" data-sort-value="updatedDesc">Diperbarui (terbaru)</div>
+                                <div class="customSelectOption" data-sort-value="updatedAsc">Diperbarui (terlama)</div>
+                                <div class="customSelectOption" data-sort-value="createdDesc">Dibuat (terbaru)</div>
+                                <div class="customSelectOption" data-sort-value="createdAsc">Dibuat (terlama)</div>
+                                <div class="customSelectOption" data-sort-value="titleAsc">Judul A–Z</div>
+                                <div class="customSelectOption" data-sort-value="titleDesc">Judul Z–A</div>
+                            </div>
+                        </div>
+                        <div class="viewToggle" id="viewToggle">
+                            <button class="viewToggleBtn active" id="viewGrid" title="Grid view" aria-label="Grid view"><span data-icon="grid" data-icon-size="15"></span></button>
+                            <button class="viewToggleBtn" id="viewList" title="List view" aria-label="List view"><span data-icon="list" data-icon-size="15"></span></button>
+                        </div>
+                        <button id="selectModeButton" class="button" title="Pilih beberapa prompt"><span data-icon="tickSquare" data-icon-size="16"></span>Pilih Banyak</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content">
+                <div class="tagFilterBar" id="tagFilterBar"></div>
+
+                <div class="gridWrap">
+                    <div id="bulkActionBar" class="bulkActionBar" style="display:none;">
+                        <span id="bulkCount" class="helperText"></span>
+                        <button id="bulkSelectAllButton" class="button">Pilih Semua</button>
+                        <select id="bulkMoveSelect" class="select" title="Pindah ke folder">
+                            <option value="">Pindah ke…</option>
+                        </select>
+                        <button id="bulkDeleteButton" class="button danger"><span data-icon="trash" data-icon-size="16"></span>Hapus</button>
+                        <button id="bulkCancelButton" class="button">Batal</button>
+                    </div>
+
+                    <div id="promptGrid" class="promptGrid"></div>
+                    <div id="emptyState" class="emptyState" style="display:none;">
+                        Belum ada prompt yang cocok dengan filter.<br /><br />
+                        Klik tombol <b>＋</b> untuk menambah prompt baru.
+                    </div>
+                </div>
+            </div>
+
+            <button id="fabButton" class="fab" title="Tambah Prompt (Ctrl+N)" aria-label="Tambah Prompt"><span data-icon="plus" data-icon-size="22"></span></button>
+        </main>
+        </div><!-- /appContent -->
+    </div>
+
+    <!-- Prompt Modal -->
+    <div id="promptModalOverlay" class="modalOverlay" aria-hidden="true">
+        <div class="modal">
+            <div class="modalHeader">
+                <h2 id="promptModalTitle">Tambah Prompt</h2>
+                <div class="modalHeaderActions">
+                    <button id="duplicatePromptButton" class="button" style="display:none;" title="Duplikat prompt ini"><span data-icon="duplicate" data-icon-size="16"></span>Duplikat</button>
+                    <button id="closePromptModal" class="iconButton" title="Tutup" aria-label="Tutup modal"><span data-icon="close" data-icon-size="18"></span></button>
+                </div>
+            </div>
+
+            <div class="modalBody">
+                <div class="formGrid">
+                    <div class="formField full">
+                        <label>Judul</label>
+                        <input id="promptTitleInput" class="input" placeholder="Misal: Email follow-up profesional" />
+                    </div>
+
+                    <div class="formField full">
+                        <label style="display:flex;justify-content:space-between;align-items:center;">
+                            <span>Isi Prompt</span>
+                            <span id="contentCounter" class="helperText" style="font-size:11px;"></span>
+                        </label>
+                        <textarea id="promptContentInput" class="textarea"
+                            placeholder="Tulis prompt di sini…"></textarea>
+                    </div>
+
+                    <div class="formField">
+                        <label>Folder</label>
+                        <select id="promptFolderSelect" class="select"></select>
+                    </div>
+
+                    <div class="formField">
+                        <label>Gambar (opsional)</label>
+                        <input id="promptImageUpload" type="file" accept="image/*" class="hiddenFileInput" />
+                        <div id="imagePreviewBlock" class="imagePreviewBlock" style="display:none;">
+                            <img id="imagePreviewThumb" class="imagePreviewThumb" alt="" />
+                            <div class="imagePreviewInfo">
+                                <span id="imagePreviewName" class="imagePreviewName"></span>
+                                <div class="imagePreviewActions">
+                                    <label for="promptImageUpload" class="button uploadLabel" style="height:30px;font-size:12px;padding:0 10px;"><span data-icon="folder" data-icon-size="13"></span>Ganti</label>
+                                    <button id="clearImageButton" class="button" type="button" style="height:30px;font-size:12px;padding:0 10px;"><span data-icon="trash" data-icon-size="13"></span>Hapus</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="imageUploadBlock">
+                            <input id="promptImageUrlInput" class="input" placeholder="Tempel URL gambar..." />
+                            <div style="display:flex; gap: 10px; margin-top: 8px;">
+                                <label for="promptImageUpload" class="button uploadLabel"><span data-icon="folder" data-icon-size="16"></span>Pilih Gambar</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="formField full">
+                        <label>Tag (klik untuk memilih)</label>
+                        <div id="promptTagSelector" class="tagSelectWrap"></div>
+                        <div class="helperText">Tip: Kelola tag dari tombol "Kelola Tag".</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modalFooter">
+                <div class="footerLeft">
+                    <button id="deletePromptButton" class="button danger" style="display:none;"><span data-icon="trash" data-icon-size="16"></span>Hapus</button>
+                    <span id="promptModalMeta" class="helperText" style="font-size:11px;"></span>
+                </div>
+                <div class="footerRight">
+                    <button id="cancelPromptButton" class="button"><span data-icon="close" data-icon-size="15"></span>Batal</button>
+                    <button id="savePromptButton" class="button primary"><span data-icon="tickSquare" data-icon-size="15"></span>Simpan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tag Manager Modal -->
+    <div id="tagModalOverlay" class="modalOverlay" aria-hidden="true">
+        <div class="modal small">
+            <div class="modalHeader">
+                <h2>Kelola Tag</h2>
+                <button id="closeTagModal" class="iconButton" title="Tutup"><span data-icon="close" data-icon-size="18"></span></button>
+            </div>
+
+            <div class="modalBody">
+                <div class="formField">
+                    <label>Nama Tag</label>
+                    <input id="tagNameInput" class="input" placeholder="Misal: Ringkas" />
+                </div>
+
+                <div class="formField" style="margin-top: 12px;">
+                    <label>Warna</label>
+                    <input id="tagColorInput" class="input" type="color" value="#1F8EF1"
+                        style="padding: 6px; height: 44px;" />
+                </div>
+
+                <div style="display:flex; gap: 10px; margin-top: 12px;">
+                    <button id="addOrUpdateTagButton" class="button primary" style="flex:1;">Tambah Tag</button>
+                    <button id="resetTagFormButton" class="button" style="flex:0 0 auto;">Reset</button>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="sectionTitle" style="margin-top: 0;">Daftar Tag</div>
+                <div id="tagList" style="display:flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+
+            <div class="modalFooter">
+                <div class="footerLeft">
+                    <span class="helperText">Tag dipakai di prompt (relasi disimpan sebagai ID).</span>
+                </div>
+                <div class="footerRight">
+                    <button id="closeTagModal2" class="button primary">Selesai</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Modal -->
+    <div id="folderModalOverlay" class="modalOverlay" aria-hidden="true">
+        <div class="modal small">
+            <div class="modalHeader">
+                <h2 id="folderModalTitle">Tambah Folder</h2>
+                <button id="closeFolderModal" class="iconButton" title="Tutup"><span data-icon="close" data-icon-size="18"></span></button>
+            </div>
+
+            <div class="modalBody">
+                <div class="formField">
+                    <label>Nama Folder</label>
+                    <input id="folderNameInput" class="input" placeholder="Misal: Kerja" />
+                </div>
+                <div class="formField" style="margin-top: 12px;">
+                    <label>Ikon (emoji)</label>
+                    <input id="folderIconInput" class="input" placeholder="Misal: 💼" />
+                    <div class="helperText">Boleh 1 emoji. Contoh: 📥 💼 📚 🗂️</div>
+                </div>
+            </div>
+
+            <div class="modalFooter">
+                <div class="footerLeft">
+                    <span id="folderModalMeta" class="helperText"></span>
+                </div>
+                <div class="footerRight">
+                    <button id="deleteFolderButton" class="button danger" style="display:none;"><span data-icon="trash" data-icon-size="16"></span>Hapus</button>
+                    <button id="cancelFolderButton" class="button"><span data-icon="close" data-icon-size="15"></span>Batal</button>
+                    <button id="saveFolderButton" class="button primary"><span data-icon="tickSquare" data-icon-size="15"></span>Simpan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="shortcutsModalOverlay" class="modalOverlay" aria-hidden="true">
+        <div class="modal small">
+            <div class="modalHeader">
+                <h2>Keyboard Shortcuts</h2>
+                <button id="closeShortcutsModal" class="iconButton" title="Tutup"><span data-icon="close" data-icon-size="18"></span></button>
+            </div>
+            <div class="modalBody">
+                <div class="shortcutGrid">
+                    <div class="shortcutRow"><kbd>Ctrl + N</kbd><span>Tambah prompt baru</span></div>
+                    <div class="shortcutRow"><kbd>Ctrl + F</kbd><span>Fokus ke search</span></div>
+                    <div class="shortcutRow"><kbd>Ctrl + Enter</kbd><span>Simpan prompt (dalam modal)</span></div>
+                    <div class="shortcutRow"><kbd>Esc</kbd><span>Tutup modal</span></div>
+                    <div class="shortcutRow"><kbd>?</kbd><span>Tampilkan shortcuts ini</span></div>
+                </div>
+            </div>
+            <div class="modalFooter">
+                <div class="footerLeft"></div>
+                <div class="footerRight">
+                    <button id="closeShortcutsModal2" class="button primary">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast host -->
+    <div class="toastHost" id="toastHost"></div>
+
+    <script src="icons.js"></script>
+    <script src="renderer.js"></script>
+</body>
+
+</html>

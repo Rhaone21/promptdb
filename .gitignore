@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# User data (personal prompts, keep local)
+data/
+data-test-empty-*/
+
+# Archives / bundles
+*.zip
+
+# OS / editor
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
