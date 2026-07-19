@@ -1,0 +1,454 @@
+// PromptDB native UI (Slint). Single-file: theme global, data structs,
+// small reusable parts, then the AppWindow that wires them together.
+// Rust (src/main.rs) owns all data/filtering logic and only pushes
+// pre-computed `[PromptItem]` / `[FolderItem]` models into this file.
+
+export global Theme {
+    in property <string> mode: "dark"; // "dark" | "oled" | "light"
+
+    out property <color> background: mode == "light" ? #F5F4FA : mode == "oled" ? #000000 : #0d0c14;
+    out property <color> surface: mode == "light" ? #FFFFFF : mode == "oled" ? #080610 : #131220;
+    out property <color> surface-elevated: mode == "light" ? #FAFAFE : mode == "oled" ? #0f0c1c : #1c1a2a;
+    out property <color> text: mode == "light" ? #16122a : mode == "oled" ? #F5F2FF : #ede9f0;
+    out property <color> text-secondary: mode == "light" ? #4B4869 : mode == "oled" ? #A89EC0 : #d4cce3;
+    out property <color> muted: mode == "light" ? #5e5688 : mode == "oled" ? #5a5270 : #8a8298;
+    out property <color> primary: mode == "light" ? #7C3AED : mode == "oled" ? #A78BFA : #8B5CF6;
+    out property <color> primary-pressed: primary.darker(0.18);
+    out property <color> accent: mode == "light" ? #DB2777 : mode == "oled" ? #F472B6 : #EC4899;
+    out property <color> outline: mode == "light" ? rgba(17, 10, 50, 0.09) : mode == "oled" ? rgba(255, 255, 255, 0.07) : rgba(255, 255, 255, 0.08);
+    out property <color> danger: #E74C3C;
+
+    out property <length> radius: 10px;
+    out property <length> radius-small: 8px;
+    out property <length> space-xs: 8px;
+    out property <length> space-sm: 16px;
+    out property <length> space-md: 24px;
+    out property <length> space-lg: 32px;
+    out property <length> sidebar-width: 280px;
+    out property <length> header-height: 64px;
+}
+
+export struct PromptItem {
+    id: string,
+    title: string,
+    preview: string,
+    content: string,
+    folder-name: string,
+    pinned: bool,
+    tag-names: [string],
+    tag-colors: [color],
+}
+
+export struct FolderItem {
+    id: string,
+    name: string,
+    icon: string,
+    count: int,
+}
+
+component TagChip inherits Rectangle {
+    in property <string> label;
+    in property <color> tag-color;
+
+    height: 22px;
+    width: txt.preferred-width + 16px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: tag-color.with-alpha(0.4);
+    background: tag-color.with-alpha(0.18);
+
+    txt := Text {
+        text: label;
+        color: tag-color;
+        font-size: 11px;
+        x: 8px;
+        y: (parent.height - self.height) / 2;
+    }
+}
+
+component SidebarItem inherits Rectangle {
+    in property <string> label;
+    in property <string> icon;
+    in property <int> count;
+    in property <bool> selected;
+    callback clicked-item();
+
+    height: 40px;
+    border-radius: Theme.radius-small;
+    background: selected ? Theme.primary.with-alpha(0.16) : (area.has-hover ? Theme.surface-elevated : transparent);
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+
+        Text {
+            text: icon;
+            font-size: 15px;
+            vertical-alignment: center;
+        }
+        Text {
+            text: label;
+            color: selected ? Theme.primary : Theme.text;
+            font-size: 13px;
+            font-weight: selected ? 600 : 400;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+        Text {
+            text: count;
+            color: Theme.muted;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+    }
+
+    area := TouchArea {
+        clicked => { clicked-item(); }
+    }
+}
+
+component Sidebar inherits Rectangle {
+    in property <[FolderItem]> folders;
+    in property <string> selected-folder-id;
+    callback folder-selected(string);
+
+    width: Theme.sidebar-width;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: Theme.outline;
+
+    Flickable {
+        VerticalLayout {
+            padding: 12px;
+            spacing: 4px;
+            alignment: start;
+
+            for f in folders : SidebarItem {
+                label: f.name;
+                icon: f.icon;
+                count: f.count;
+                selected: f.id == selected-folder-id;
+                clicked-item => { folder-selected(f.id); }
+            }
+        }
+    }
+}
+
+component TitleBarButton inherits Rectangle {
+    in property <string> label;
+    callback clicked-btn();
+
+    width: 34px;
+    height: 28px;
+    border-radius: 4px;
+    background: area.pressed ? Theme.outline : (area.has-hover ? Theme.surface : transparent);
+
+    Text {
+        text: label;
+        color: Theme.text-secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-size: 14px;
+    }
+
+    area := TouchArea {
+        clicked => { clicked-btn(); }
+    }
+}
+
+component Header inherits Rectangle {
+    in property <bool> update-available;
+    in property <string> update-version;
+    in property <string> theme-label;
+    callback cycle-theme-req();
+    callback open-update-req();
+    callback minimize-req();
+    callback maximize-req();
+    callback close-req();
+
+    height: Theme.header-height;
+    background: Theme.surface-elevated;
+    border-width: 1px;
+    border-color: Theme.outline;
+
+    HorizontalLayout {
+        padding-left: 20px;
+        padding-right: 12px;
+        spacing: 12px;
+
+        Text {
+            text: "PromptDB";
+            color: Theme.text;
+            font-size: 18px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+
+        Rectangle { horizontal-stretch: 1; }
+
+        if update-available : Rectangle {
+            width: update-txt.preferred-width + 24px;
+            height: 32px;
+            border-radius: Theme.radius-small;
+            background: update-area.pressed ? Theme.accent.darker(0.15) : Theme.accent;
+
+            update-txt := Text {
+                text: "Update available (v" + update-version + ")";
+                color: #ffffff;
+                x: 12px;
+                y: (parent.height - self.height) / 2;
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            update-area := TouchArea {
+                clicked => { open-update-req(); }
+            }
+        }
+
+        Rectangle {
+            width: theme-txt.preferred-width + 20px;
+            height: 32px;
+            border-radius: Theme.radius-small;
+            border-width: 1px;
+            border-color: Theme.outline;
+            background: theme-area.pressed ? Theme.outline : (theme-area.has-hover ? Theme.surface : transparent);
+
+            theme-txt := Text {
+                text: theme-label;
+                color: Theme.text;
+                x: 10px;
+                y: (parent.height - self.height) / 2;
+                font-size: 12px;
+            }
+
+            theme-area := TouchArea {
+                clicked => { cycle-theme-req(); }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 4px;
+            TitleBarButton { label: "\u{2212}"; clicked-btn => { minimize-req(); } }
+            TitleBarButton { label: "\u{25a2}"; clicked-btn => { maximize-req(); } }
+            TitleBarButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+        }
+    }
+}
+
+component SearchBox inherits Rectangle {
+    callback edited(string);
+
+    height: 40px;
+    border-radius: Theme.radius-small;
+    background: Theme.surface;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.primary : Theme.outline;
+
+    if input.text == "" : Text {
+        text: "Search prompts by title or content...";
+        color: Theme.muted;
+        x: 14px;
+        y: (parent.height - self.height) / 2;
+        font-size: 14px;
+    }
+
+    input := TextInput {
+        x: 14px;
+        width: parent.width - 28px;
+        y: (parent.height - self.height) / 2;
+        color: Theme.text;
+        font-size: 14px;
+        single-line: true;
+        edited => { root.edited(self.text); }
+    }
+}
+
+component PromptCard inherits Rectangle {
+    in property <PromptItem> item;
+    callback copy-requested(string);
+    callback pin-requested(string);
+
+    background: Theme.surface;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.outline;
+
+    VerticalLayout {
+        padding: 16px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: item.title;
+                color: Theme.text;
+                font-size: 16px;
+                font-weight: 600;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+
+            pin-touch := Rectangle {
+                width: 30px;
+                height: 30px;
+                pin-dot := Rectangle {
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 5px;
+                    x: (parent.width - self.width) / 2;
+                    y: (parent.height - self.height) / 2;
+                    background: item.pinned ? Theme.accent : transparent;
+                    border-width: 1px;
+                    border-color: item.pinned ? Theme.accent : Theme.muted;
+                }
+                TouchArea {
+                    clicked => { pin-requested(item.id); }
+                }
+            }
+        }
+
+        Text {
+            text: item.preview;
+            color: Theme.text-secondary;
+            font-size: 13px;
+            wrap: word-wrap;
+        }
+
+        Text {
+            text: item.folder-name;
+            color: Theme.muted;
+            font-size: 12px;
+        }
+
+        Rectangle {
+            height: tags-layout.preferred-height;
+            clip: true;
+            tags-layout := HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                for name[i] in item.tag-names : TagChip {
+                    label: name;
+                    tag-color: item.tag-colors[i];
+                }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            copy-btn := Rectangle {
+                width: 70px;
+                height: 30px;
+                border-radius: Theme.radius-small;
+                background: copy-area.pressed ? Theme.primary-pressed : (copy-area.has-hover ? Theme.primary.darker(0.05) : Theme.primary);
+
+                Text {
+                    text: "Copy";
+                    color: #ffffff;
+                    font-size: 12px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                copy-area := TouchArea {
+                    clicked => { copy-requested(item.content); }
+                }
+            }
+        }
+    }
+}
+
+component MainArea inherits Rectangle {
+    in property <[PromptItem]> prompts;
+    callback search-changed(string);
+    callback copy-requested(string);
+    callback pin-requested(string);
+
+    horizontal-stretch: 1;
+    background: Theme.background;
+
+    VerticalLayout {
+        padding: 24px;
+        spacing: 16px;
+
+        SearchBox {
+            edited(t) => { search-changed(t); }
+        }
+
+        Flickable {
+            VerticalLayout {
+                spacing: 12px;
+                alignment: start;
+
+                for it in prompts : PromptCard {
+                    item: it;
+                    copy-requested(c) => { copy-requested(c); }
+                    pin-requested(id) => { pin-requested(id); }
+                }
+
+                if prompts.length == 0 : Text {
+                    text: "No prompts found.";
+                    color: Theme.muted;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "PromptDB";
+    preferred-width: 1200px;
+    preferred-height: 800px;
+    background: Theme.background;
+
+    in property <[PromptItem]> prompts;
+    in property <[FolderItem]> folders;
+    in property <string> selected-folder-id: "";
+    in property <bool> update-available: false;
+    in property <string> update-version;
+    in property <string> update-url;
+
+    callback search(string);
+    callback select-folder(string);
+    callback copy(string);
+    callback toggle-pin(string);
+    callback cycle-theme();
+    callback open-update();
+    callback minimize-window();
+    callback maximize-window();
+    callback close-window();
+
+    VerticalLayout {
+        Header {
+            update-available: root.update-available;
+            update-version: root.update-version;
+            theme-label: Theme.mode == "dark" ? "Dark" : Theme.mode == "oled" ? "OLED" : "Light";
+            cycle-theme-req => { root.cycle-theme(); }
+            open-update-req => { root.open-update(); }
+            minimize-req => { root.minimize-window(); }
+            maximize-req => { root.maximize-window(); }
+            close-req => { root.close-window(); }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            Sidebar {
+                folders: root.folders;
+                selected-folder-id: root.selected-folder-id;
+                folder-selected(id) => { root.select-folder(id); }
+            }
+
+            MainArea {
+                prompts: root.prompts;
+                search-changed(t) => { root.search(t); }
+                copy-requested(c) => { root.copy(c); }
+                pin-requested(id) => { root.toggle-pin(id); }
+            }
+        }
+    }
+}
