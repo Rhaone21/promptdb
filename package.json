@@ -32,18 +32,18 @@
             "style.css",
             "renderer.js",
             "icons.js",
-            "icon-brand.png"
+            "icons/icon-brand.png"
         ],
         "win": {
             "target": "portable",
-            "icon": "icon.ico"
+            "icon": "icons/icon.ico"
         },
         "portable": {
             "artifactName": "PromptDB-Portable.exe"
         },
         "mac": {
             "target": "dmg",
-            "icon": "icon-mac.png",
+            "icon": "icons/icon-mac.png",
             "category": "public.app-category.productivity",
             "identity": null
         }

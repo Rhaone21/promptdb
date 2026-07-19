@@ -159,7 +159,7 @@ function createWindow() {
         minWidth: 620,
         minHeight: 480,
         title: "PromptDB",
-        icon: path.join(__dirname, 'icon.ico'),
+        icon: path.join(__dirname, 'icons', 'icon.ico'),
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
             contextIsolation: true,
