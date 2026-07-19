@@ -66,6 +66,49 @@ export struct BackupItem {
 
 // ---- Small reusable parts ----
 
+// Renders an iconsax SVG (assets/icons/<name>.svg) tinted to `tint`.
+// SVGs are monochrome black+alpha, so colorize preserves the bulk two-tone
+// look in any theme color. @image-url needs literal paths, hence the chain.
+component Icon inherits Image {
+    in property <string> name;
+    in property <color> tint: Theme.text-secondary;
+    in property <length> size: 16px;
+    width: size;
+    height: size;
+    image-fit: contain;
+    colorize: tint;
+    source:
+        name == "search" ? @image-url("../assets/icons/search.svg") :
+        name == "close" ? @image-url("../assets/icons/close.svg") :
+        name == "add" ? @image-url("../assets/icons/add.svg") :
+        name == "plus" ? @image-url("../assets/icons/plus.svg") :
+        name == "trash" ? @image-url("../assets/icons/trash.svg") :
+        name == "edit" ? @image-url("../assets/icons/edit.svg") :
+        name == "copy" ? @image-url("../assets/icons/copy.svg") :
+        name == "duplicate" ? @image-url("../assets/icons/duplicate.svg") :
+        name == "tag" ? @image-url("../assets/icons/tag.svg") :
+        name == "folder" ? @image-url("../assets/icons/folder.svg") :
+        name == "moon" ? @image-url("../assets/icons/moon.svg") :
+        name == "sun" ? @image-url("../assets/icons/sun.svg") :
+        name == "setting" ? @image-url("../assets/icons/setting.svg") :
+        name == "arrowDown" ? @image-url("../assets/icons/arrowDown.svg") :
+        name == "restore" ? @image-url("../assets/icons/restore.svg") :
+        name == "tickSquare" ? @image-url("../assets/icons/tickSquare.svg") :
+        name == "menu" ? @image-url("../assets/icons/menu.svg") :
+        name == "import" ? @image-url("../assets/icons/import.svg") :
+        name == "export" ? @image-url("../assets/icons/export.svg") :
+        name == "keyboard" ? @image-url("../assets/icons/keyboard.svg") :
+        name == "bookmark" ? @image-url("../assets/icons/bookmark.svg") :
+        name == "data" ? @image-url("../assets/icons/data.svg") :
+        name == "oled" ? @image-url("../assets/icons/oled.svg") :
+        name == "grid" ? @image-url("../assets/icons/grid.svg") :
+        name == "list" ? @image-url("../assets/icons/list.svg") :
+        name == "winMin" ? @image-url("../assets/icons/winMin.svg") :
+        name == "winMax" ? @image-url("../assets/icons/winMax.svg") :
+        name == "winRestore" ? @image-url("../assets/icons/winRestore.svg") :
+        @image-url("../assets/icons/add.svg");
+}
+
 component TagChip inherits Rectangle {
     in property <string> label;
     in property <color> tag-color;
@@ -88,8 +131,10 @@ component TagChip inherits Rectangle {
 
 component IconButton inherits Rectangle {
     in property <string> label;
+    in property <string> icon-name: "";
     in property <color> fg: Theme.text-secondary;
     in property <length> btn-size: 30px;
+    in property <length> icon-size: 16px;
     callback clicked-btn();
 
     width: btn-size;
@@ -97,10 +142,19 @@ component IconButton inherits Rectangle {
     border-radius: Theme.radius-small;
     background: area.pressed ? Theme.outline : (area.has-hover ? Theme.surface-elevated : transparent);
 
-    Text {
+    if icon-name != "" : Icon {
+        name: icon-name;
+        tint: fg;
+        size: icon-size;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+    if icon-name == "" : Text {
         text: label;
         color: fg;
         font-size: 13px;
+        width: 100%;
+        height: 100%;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -112,22 +166,29 @@ component IconButton inherits Rectangle {
 
 component PrimaryButton inherits Rectangle {
     in property <string> label;
+    in property <string> icon-name: "";
     in property <color> bg: Theme.primary;
     in property <color> fg: #ffffff;
     callback clicked-btn();
 
     height: 36px;
-    width: txt.preferred-width + 28px;
+    width: row.preferred-width;
     border-radius: Theme.radius-small;
     background: area.pressed ? bg.darker(0.18) : (area.has-hover ? bg.darker(0.06) : bg);
 
-    txt := Text {
-        text: label;
-        color: fg;
-        font-size: 13px;
-        font-weight: 600;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+    row := HorizontalLayout {
+        alignment: center;
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 7px;
+        if icon-name != "" : Icon { name: icon-name; tint: fg; size: 15px; }
+        Text {
+            text: label;
+            color: fg;
+            font-size: 13px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
     }
 
     area := TouchArea {
@@ -137,22 +198,29 @@ component PrimaryButton inherits Rectangle {
 
 component GhostButton inherits Rectangle {
     in property <string> label;
+    in property <string> icon-name: "";
     in property <color> fg: Theme.text;
     callback clicked-btn();
 
     height: 36px;
-    width: txt.preferred-width + 24px;
+    width: row.preferred-width;
     border-radius: Theme.radius-small;
     border-width: 1px;
     border-color: Theme.outline;
     background: area.pressed ? Theme.outline : (area.has-hover ? Theme.surface-elevated : transparent);
 
-    txt := Text {
-        text: label;
-        color: fg;
-        font-size: 13px;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+    row := HorizontalLayout {
+        alignment: center;
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 6px;
+        if icon-name != "" : Icon { name: icon-name; tint: fg; size: 15px; }
+        Text {
+            text: label;
+            color: fg;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
     }
 
     area := TouchArea {
@@ -262,8 +330,8 @@ component SidebarItem inherits Rectangle {
         }
         if show-actions && area.has-hover : HorizontalLayout {
             spacing: 2px;
-            IconButton { label: "\u{270E}"; btn-size: 22px; clicked-btn => { edit-clicked(); } }
-            IconButton { label: "\u{1F5D1}"; btn-size: 22px; clicked-btn => { delete-clicked(); } }
+            IconButton { icon-name: "edit"; icon-size: 14px; btn-size: 24px; clicked-btn => { edit-clicked(); } }
+            IconButton { icon-name: "trash"; icon-size: 14px; btn-size: 24px; fg: Theme.danger; clicked-btn => { delete-clicked(); } }
         }
     }
 
@@ -288,10 +356,48 @@ component Sidebar inherits Rectangle {
     border-color: Theme.outline;
 
     VerticalLayout {
+        // Brand header
+        Rectangle {
+            height: 60px;
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                spacing: 10px;
+                Image {
+                    source: @image-url("../icons/icon-brand.png");
+                    width: 32px;
+                    height: 32px;
+                    image-fit: contain;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Text { text: "PromptDB"; color: Theme.text; font-size: 15px; font-weight: 700; }
+                    Text { text: "Penyimpanan Lokal"; color: Theme.muted; font-size: 11px; }
+                }
+            }
+        }
+        Rectangle { height: 1px; background: Theme.outline; }
+
+        // Section label
+        Rectangle {
+            height: 30px;
+            Text {
+                text: "FOLDER";
+                color: Theme.muted;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+                x: 14px;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+
         Flickable {
             vertical-stretch: 1;
             VerticalLayout {
-                padding: 12px;
+                padding-left: 12px;
+                padding-right: 12px;
+                padding-bottom: 12px;
                 spacing: 4px;
                 alignment: start;
 
@@ -321,8 +427,10 @@ component Sidebar inherits Rectangle {
             HorizontalLayout {
                 padding: 12px;
                 spacing: 8px;
+                alignment: start;
+                Icon { name: "add"; tint: add-area.has-hover ? Theme.primary : Theme.text-secondary; size: 16px; }
                 Text {
-                    text: "+ Folder Baru";
+                    text: "Folder Baru";
                     color: add-area.has-hover ? Theme.primary : Theme.text-secondary;
                     font-size: 13px;
                     vertical-alignment: center;
@@ -335,20 +443,23 @@ component Sidebar inherits Rectangle {
 // ---- Title bar ----
 
 component TitleBarButton inherits Rectangle {
-    in property <string> label;
+    in property <string> icon-name;
+    in property <bool> is-close: false;
     callback clicked-btn();
 
-    width: 34px;
-    height: 28px;
-    border-radius: 4px;
-    background: area.pressed ? Theme.outline : (area.has-hover ? Theme.surface : transparent);
+    width: 40px;
+    height: 30px;
+    border-radius: 6px;
+    background: area.pressed
+        ? (is-close ? Theme.danger : Theme.outline)
+        : (area.has-hover ? (is-close ? Theme.danger.with-alpha(0.85) : Theme.surface) : transparent);
 
-    Text {
-        text: label;
-        color: Theme.text-secondary;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        font-size: 14px;
+    Icon {
+        name: icon-name;
+        tint: (is-close && area.has-hover) ? #ffffff : Theme.text-secondary;
+        size: 13px;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
     }
 
     area := TouchArea {
@@ -375,18 +486,25 @@ component Header inherits Rectangle {
 
     HorizontalLayout {
         padding-left: 12px;
-        padding-right: 12px;
-        spacing: 12px;
+        padding-right: 10px;
+        spacing: 10px;
 
         IconButton {
-            label: sidebar-collapsed ? "\u{2630}" : "\u{2039}";
+            icon-name: "menu";
             clicked-btn => { toggle-sidebar-req(); }
         }
 
+        // Brand: logo + wordmark
+        Image {
+            source: @image-url("../icons/icon-brand.png");
+            width: 26px;
+            height: 26px;
+            image-fit: contain;
+        }
         Text {
             text: "PromptDB";
             color: Theme.text;
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
             vertical-alignment: center;
         }
@@ -394,18 +512,22 @@ component Header inherits Rectangle {
         Rectangle { horizontal-stretch: 1; }
 
         if update-available : Rectangle {
-            width: update-txt.preferred-width + 24px;
+            width: update-row.preferred-width + 24px;
             height: 32px;
             border-radius: Theme.radius-small;
             background: update-area.pressed ? Theme.accent.darker(0.15) : Theme.accent;
 
-            update-txt := Text {
-                text: "Update available (v" + update-version + ")";
-                color: #ffffff;
-                x: 12px;
-                y: (parent.height - self.height) / 2;
-                font-size: 12px;
-                font-weight: 600;
+            update-row := HorizontalLayout {
+                alignment: center;
+                spacing: 6px;
+                Icon { name: "restore"; tint: #ffffff; size: 14px; }
+                Text {
+                    text: "Update v" + update-version;
+                    color: #ffffff;
+                    font-size: 12px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
             }
 
             update-area := TouchArea {
@@ -413,32 +535,18 @@ component Header inherits Rectangle {
             }
         }
 
-        Rectangle {
-            width: theme-txt.preferred-width + 20px;
-            height: 32px;
-            border-radius: Theme.radius-small;
-            border-width: 1px;
-            border-color: Theme.outline;
-            background: theme-area.pressed ? Theme.outline : (theme-area.has-hover ? Theme.surface : transparent);
-
-            theme-txt := Text {
-                text: theme-label;
-                color: Theme.text;
-                x: 10px;
-                y: (parent.height - self.height) / 2;
-                font-size: 12px;
-            }
-
-            theme-area := TouchArea {
-                clicked => { cycle-theme-req(); }
-            }
+        // Theme toggle (icon reflects current mode)
+        IconButton {
+            icon-name: Theme.mode == "light" ? "sun" : Theme.mode == "oled" ? "oled" : "moon";
+            fg: Theme.text;
+            clicked-btn => { cycle-theme-req(); }
         }
 
         HorizontalLayout {
             spacing: 4px;
-            TitleBarButton { label: "\u{2212}"; clicked-btn => { minimize-req(); } }
-            TitleBarButton { label: "\u{25a2}"; clicked-btn => { maximize-req(); } }
-            TitleBarButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+            TitleBarButton { icon-name: "winMin"; clicked-btn => { minimize-req(); } }
+            TitleBarButton { icon-name: "winMax"; clicked-btn => { maximize-req(); } }
+            TitleBarButton { icon-name: "close"; is-close: true; clicked-btn => { close-req(); } }
         }
     }
 }
@@ -455,17 +563,25 @@ component SearchBox inherits Rectangle {
     border-width: 1px;
     border-color: input.has-focus ? Theme.primary : Theme.outline;
 
+    Icon {
+        name: "search";
+        tint: Theme.muted;
+        size: 16px;
+        x: 12px;
+        y: (parent.height - self.height) / 2;
+    }
+
     if input.text == "" : Text {
         text: "Cari judul atau isi prompt...";
         color: Theme.muted;
-        x: 14px;
+        x: 38px;
         y: (parent.height - self.height) / 2;
         font-size: 13px;
     }
 
     input := TextInput {
-        x: 14px;
-        width: parent.width - 28px;
+        x: 38px;
+        width: parent.width - 50px;
         y: (parent.height - self.height) / 2;
         color: Theme.text;
         font-size: 13px;
@@ -490,11 +606,11 @@ component Toolbar inherits Rectangle {
         spacing: 8px;
 
         SearchBox { edited(t) => { search-changed(t); } }
-        PrimaryButton { label: "+ Tambah Prompt"; clicked-btn => { add-prompt-req(); } }
-        GhostButton { label: "Kelola Tag"; clicked-btn => { manage-tags-req(); } }
-        GhostButton { label: "Import"; clicked-btn => { import-req(); } }
-        GhostButton { label: "Export"; clicked-btn => { export-req(); } }
-        GhostButton { label: "Backup"; clicked-btn => { backups-req(); } }
+        PrimaryButton { icon-name: "add"; label: "Tambah Prompt"; clicked-btn => { add-prompt-req(); } }
+        GhostButton { icon-name: "tag"; label: "Kelola Tag"; clicked-btn => { manage-tags-req(); } }
+        GhostButton { icon-name: "import"; label: "Import"; clicked-btn => { import-req(); } }
+        GhostButton { icon-name: "export"; label: "Export"; clicked-btn => { export-req(); } }
+        GhostButton { icon-name: "restore"; label: "Backup"; clicked-btn => { backups-req(); } }
     }
 }
 
@@ -589,55 +705,71 @@ component PromptCard inherits Rectangle {
     callback edit-requested(string);
     callback duplicate-requested(string);
 
+    clip: true;
     background: Theme.surface;
     border-radius: Theme.radius;
     border-width: 1px;
-    border-color: card-area.has-hover ? Theme.primary.with-alpha(0.4) : Theme.outline;
+    border-color: card-area.has-hover ? Theme.primary.with-alpha(0.45) : Theme.outline;
 
     card-area := TouchArea {
         clicked => { edit-requested(item.id); }
     }
 
     VerticalLayout {
-        padding: 16px;
+        padding: 14px;
         spacing: 8px;
+
+        // Title + pin marker
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: item.title;
+                color: Theme.text;
+                font-size: 15px;
+                font-weight: 600;
+                horizontal-stretch: 1;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+            if item.pinned : Icon { name: "bookmark"; tint: Theme.primary; size: 15px; }
+        }
 
         if item.has-image : Image {
             source: item.image;
-            height: 120px;
+            height: 72px;
             width: 100%;
             image-fit: cover;
         }
 
+        // Preview fills the slack so the footer pins to the bottom (uniform grid).
+        Text {
+            text: item.preview;
+            color: Theme.text-secondary;
+            font-size: 12.5px;
+            wrap: word-wrap;
+            overflow: elide;
+            vertical-stretch: 1;
+        }
+
+        // Folder line
         HorizontalLayout {
-            spacing: 8px;
+            spacing: 5px;
+            Icon { name: "folder"; tint: Theme.muted; size: 13px; }
             Text {
-                text: (item.pinned ? "\u{1F4CC} " : "") + item.title;
-                color: Theme.text;
-                font-size: 16px;
-                font-weight: 600;
+                text: item.folder-name;
+                color: Theme.muted;
+                font-size: 11.5px;
+                vertical-alignment: center;
                 horizontal-stretch: 1;
                 overflow: elide;
             }
         }
 
-        Text {
-            text: item.preview;
-            color: Theme.text-secondary;
-            font-size: 13px;
-            wrap: word-wrap;
-        }
-
-        Text {
-            text: item.folder-name;
-            color: Theme.muted;
-            font-size: 12px;
-        }
-
+        // Tags
         Rectangle {
-            height: tags-layout.preferred-height;
+            height: 22px;
             clip: true;
-            tags-layout := HorizontalLayout {
+            HorizontalLayout {
                 spacing: 6px;
                 alignment: start;
                 for name[i] in item.tag-names : TagChip {
@@ -647,31 +779,39 @@ component PromptCard inherits Rectangle {
             }
         }
 
+        // Actions
         HorizontalLayout {
             alignment: end;
             spacing: 6px;
 
             IconButton {
-                label: item.pinned ? "\u{1F4CC}" : "\u{1F4CD}";
+                icon-name: "bookmark";
+                icon-size: 15px;
+                fg: item.pinned ? Theme.primary : Theme.muted;
                 clicked-btn => { pin-requested(item.id); }
             }
             IconButton {
-                label: "\u{29C9}";
+                icon-name: "duplicate";
+                icon-size: 15px;
                 clicked-btn => { duplicate-requested(item.id); }
             }
             copy-btn := Rectangle {
-                width: 70px;
+                width: 76px;
                 height: 30px;
                 border-radius: Theme.radius-small;
                 background: copy-area.pressed ? Theme.primary-pressed : (copy-area.has-hover ? Theme.primary.darker(0.05) : Theme.primary);
 
-                Text {
-                    text: "Copy";
-                    color: #ffffff;
-                    font-size: 12px;
-                    font-weight: 600;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 5px;
+                    Icon { name: "copy"; tint: #ffffff; size: 13px; }
+                    Text {
+                        text: "Copy";
+                        color: #ffffff;
+                        font-size: 12px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
                 }
 
                 copy-area := TouchArea {
@@ -710,13 +850,27 @@ component MainArea inherits Rectangle {
         }
 
         Flickable {
-            VerticalLayout {
-                padding: 24px;
-                spacing: 12px;
-                alignment: start;
+            viewport-width: self.width;
+            viewport-height: grid.height;
 
-                for it in prompts : PromptCard {
+            grid := Rectangle {
+                width: parent.width;
+                property <length> pad: 20px;
+                property <length> gap: 16px;
+                property <length> mincard: 300px;
+                // Reflow: as many columns of >=mincard as the width allows.
+                property <int> cols: Math.max(1, Math.floor((self.width - 2 * pad + gap) / (mincard + gap)));
+                property <length> card-w: (self.width - 2 * pad - (cols - 1) * gap) / cols;
+                property <length> card-h: 210px;
+                property <int> rows: Math.ceil(prompts.length / cols);
+                height: prompts.length > 0 ? (rows * (card-h + gap) - gap + 2 * pad) : 260px;
+
+                for it[idx] in prompts : PromptCard {
                     item: it;
+                    width: grid.card-w;
+                    height: grid.card-h;
+                    x: grid.pad + Math.mod(idx, grid.cols) * (grid.card-w + grid.gap);
+                    y: grid.pad + Math.floor(idx / grid.cols) * (grid.card-h + grid.gap);
                     copy-requested(c) => { copy-requested(c); }
                     pin-requested(id) => { pin-requested(id); }
                     edit-requested(id) => { edit-requested(id); }
@@ -726,7 +880,9 @@ component MainArea inherits Rectangle {
                 if prompts.length == 0 : Text {
                     text: "Tidak ada prompt. Klik \"+ Tambah Prompt\" untuk membuat yang baru.";
                     color: Theme.muted;
-                    horizontal-alignment: center;
+                    font-size: 14px;
+                    x: (parent.width - self.width) / 2;
+                    y: 48px;
                 }
             }
         }
@@ -788,7 +944,7 @@ component PromptModal inherits ModalScrim {
                     font-weight: 700;
                     horizontal-stretch: 1;
                 }
-                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+                IconButton { icon-name: "close"; icon-size: 18px; clicked-btn => { close-req(); } }
             }
 
             if is-edit : Text {
@@ -940,7 +1096,7 @@ component FolderModal inherits ModalScrim {
                     font-weight: 700;
                     horizontal-stretch: 1;
                 }
-                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+                IconButton { icon-name: "close"; icon-size: 18px; clicked-btn => { close-req(); } }
             }
 
             HorizontalLayout {
@@ -1046,8 +1202,8 @@ component TagListRow inherits Rectangle {
             vertical-alignment: center;
             horizontal-stretch: 1;
         }
-        IconButton { label: "\u{270E}"; btn-size: 24px; clicked-btn => { edit-clicked(); } }
-        IconButton { label: "\u{1F5D1}"; btn-size: 24px; clicked-btn => { delete-clicked(); } }
+        IconButton { icon-name: "edit"; icon-size: 14px; btn-size: 24px; clicked-btn => { edit-clicked(); } }
+        IconButton { icon-name: "trash"; icon-size: 14px; btn-size: 24px; fg: Theme.danger; clicked-btn => { delete-clicked(); } }
     }
 }
 
@@ -1091,7 +1247,7 @@ component TagModal inherits ModalScrim {
                     font-weight: 700;
                     horizontal-stretch: 1;
                 }
-                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+                IconButton { icon-name: "close"; icon-size: 18px; clicked-btn => { close-req(); } }
             }
 
             Rectangle {
@@ -1211,7 +1367,7 @@ component BackupModal inherits ModalScrim {
                     font-weight: 700;
                     horizontal-stretch: 1;
                 }
-                IconButton { label: "\u{2715}"; clicked-btn => { close-req(); } }
+                IconButton { icon-name: "close"; icon-size: 18px; clicked-btn => { close-req(); } }
             }
 
             if backups.length == 0 : Text {
