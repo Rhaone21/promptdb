@@ -370,28 +370,6 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-    // --- window controls ---
-    {
-        let ui_weak = ui.as_weak();
-        ui.on_minimize_window(move || {
-            if let Some(ui) = ui_weak.upgrade() {
-                ui.window().set_minimized(true);
-            }
-        });
-    }
-    {
-        let ui_weak = ui.as_weak();
-        ui.on_maximize_window(move || {
-            if let Some(ui) = ui_weak.upgrade() {
-                let w = ui.window();
-                w.set_maximized(!w.is_maximized());
-            }
-        });
-    }
-    ui.on_close_window(move || {
-        let _ = slint::quit_event_loop();
-    });
-
     // ================= Prompt CRUD =================
 
     fn open_prompt_modal(ui: &AppWindow, state: &Rc<RefCell<AppState>>, prompt_id: Option<String>) {
