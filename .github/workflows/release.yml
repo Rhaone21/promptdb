@@ -1,0 +1,44 @@
+name: Release
+
+# Push a tag like v2.0.1 to build both platforms and publish a GitHub Release.
+# The in-app updater checks this release list; a tag newer than the running
+# build's version lights up the "Update available" button.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: promptdb-macos
+            bin: promptdb
+          - os: windows-latest
+            artifact: promptdb-windows
+            bin: promptdb.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: cd target/release && zip -j ${{ matrix.artifact }}.zip ${{ matrix.bin }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: cd target/release; Compress-Archive -Path ${{ matrix.bin }} -DestinationPath ${{ matrix.artifact }}.zip
+
+      - name: Publish to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/${{ matrix.artifact }}.zip
+          generate_release_notes: true
