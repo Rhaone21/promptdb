@@ -104,6 +104,7 @@ pub struct BackupInfo {
     pub slot: u8,
     pub path: PathBuf,
     pub size: u64,
+    pub modified: Option<std::time::SystemTime>,
 }
 
 pub fn list_backups() -> Vec<BackupInfo> {
@@ -114,12 +115,32 @@ pub fn list_backups() -> Vec<BackupInfo> {
         if let Ok(meta) = fs::metadata(&p) {
             out.push(BackupInfo {
                 slot,
+                modified: meta.modified().ok(),
                 path: p,
                 size: meta.len(),
             });
         }
     }
     out
+}
+
+/// Write image bytes into the images dir under `filename` (mirrors Electron's
+/// image:save IPC — the caller picks the filename, typically `<uuid>.<ext>`).
+pub fn save_image(filename: &str, bytes: &[u8]) -> io::Result<String> {
+    let dir = images_dir();
+    fs::create_dir_all(&dir)?;
+    fs::write(dir.join(filename), bytes)?;
+    Ok(filename.to_string())
+}
+
+/// Delete an image by filename (mirrors Electron's image:delete IPC). Missing
+/// file is not an error — the prompt referencing it may already be gone.
+pub fn delete_image(filename: &str) -> io::Result<()> {
+    let p = images_dir().join(filename);
+    if p.exists() {
+        fs::remove_file(p)?;
+    }
+    Ok(())
 }
 
 pub fn restore_backup(slot: u8) -> io::Result<Database> {
@@ -155,6 +176,20 @@ fn strip_bom(s: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// save_image/delete_image round-trip: write bytes, read them back,
+    /// delete, confirm gone. Uses a throwaway filename in the real images
+    /// dir and cleans up after itself either way.
+    #[test]
+    fn save_and_delete_image_round_trips() {
+        let name = "promptdb_test_save_and_delete_image.bin";
+        let bytes = [1u8, 2, 3, 4, 5];
+        save_image(name, &bytes).expect("save_image should succeed");
+        let read_back = fs::read(images_dir().join(name)).expect("file should exist after save");
+        assert_eq!(read_back, bytes);
+        delete_image(name).expect("delete_image should succeed");
+        assert!(!images_dir().join(name).exists(), "file should be gone after delete");
+    }
 
     /// Loads the user's real db.json (present in dev) and confirms it parses
     /// and round-trips without dropping data.
