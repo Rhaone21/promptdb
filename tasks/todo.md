@@ -24,10 +24,26 @@ Council verdict: Tauri. Owner override: **native Slint** (max lightweight),
 - [x] CI (Win+Mac build+test) + Release workflow (tag → GitHub Release)
 - [x] v2.0.0 released: mac + windows artifacts published. Updater live end-to-end.
 
+## Done (UI fidelity pass — owner's 5 complaints)
+- [x] 28 iconsax SVGs extracted from icons.js → `assets/icons/`, themeable `Icon` component (colorize)
+- [x] All chrome emoji/glyphs → SVG icons (folder emoji = user data, stays)
+- [x] Brand logo in header + sidebar; sidebar brand block + FOLDER section
+- [x] Responsive reflowing card grid (was single column)
+- [x] Layout alignment: layout-based centering in buttons/header/cards
+
+## Done (reaudit fixes)
+- [x] Double window chrome removed — native OS controls only
+- [x] Image-card overflow fixed (236px uniform cards, actions never clip)
+- [x] Tag modal stale input — two-way `<=>` binding chain
+- [x] Folder delete button → GhostButton + trash icon
+- [x] README.md added
+
 ## Follow-up (tracked)
-- [ ] Retire Electron files from main (once you confirm Slint parity in daily use)
+- [ ] Retire Electron files from main (once owner confirms parity in daily use)
+- [ ] Not yet ported from Electron: sort dropdown, grid/list view toggle, FAB,
+      bulk select/move/delete, keyboard shortcuts, export+images (bundled), drag to folder
 - [ ] Bundled-image export; proper .app/.dmg + .msi packaging + code signing
-- [ ] RAM trim (software renderer option) if 127MB matters
+- [ ] RAM trim (software renderer option) if ~150MB matters
 - [ ] Sidebar collapse to icon-rail (currently width 0)
 
 ## Design tokens (from existing style.css — 3 themes)
